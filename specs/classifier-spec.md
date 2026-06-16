@@ -174,6 +174,8 @@ scan for label: next(l for l in VALID_LABELS if l in first_line)
 ```
 [blank — what do you do if the LLM returns a label that isn't in VALID_LABELS?
 What should label be set to?]
+
+Set the label as unknown if the label is not in VALID_LABELS
 ```
 
 ---
@@ -184,6 +186,15 @@ What should label be set to?]
 [blank — what could go wrong? (Network error? Unparseable response?)
 What should the function return if something fails?
 Hint: the evaluation loop runs 20 calls — one bad response shouldn't crash everything.]
+
+Wrap the LLM call and parse block in a try/catch that captures Exceptions Broadly. Errors such as network errors, API rate limits, JSON decode errors, and unexpected 
+reponses should all be caught. 
+
+Return the correct format/shape, that is "label" and "reasoning".
+
+The error message should be put in "reasoning"
+
+Never let 1 error raise - so 1 error should not stop the entire evaluation from completing. 
 ```
 
 ---
