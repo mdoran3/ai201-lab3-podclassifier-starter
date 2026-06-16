@@ -55,28 +55,70 @@ def build_few_shot_prompt(labeled_examples: list[dict], description: str) -> str
 
     Before writing code, complete specs/classifier-spec.md.
     """
-    return ""
+    # 1. Task instruction: describe the task and the four valid labels
+    task_instruction = (
+        "You are classifying podcast episodes by their format. "
+        "Classify the episode into exactly one of these four labels:\n\n"
+        "- interview: a conversation between a host and one or more guests\n"
+        "- solo: a single host speaking from memory, experience, or opinion — no guests, "
+        "no assembled external sources\n"
+        "- panel: multiple guests with roughly equal speaking time, often debating or "
+        "discussing a topic together\n"
+        "- narrative: a story assembled from external sources — interviews, archival "
+        "audio, reporting — with a clear narrative arc\n\n"
+        "Return the label on the first line, then your reasoning on the following lines. "
+        "The label must be exactly one of: interview, solo, panel, narrative."
+    )
+
+    # 2. Labeled examples block: Title / Description / Label for each training example
+    examples_block = ""
+    for ex in labeled_examples:
+        examples_block += (
+            f"Title: {ex['title']}\n"
+            f"Description: {ex['description']}\n"
+            f"Label: {ex['label']}\n\n"
+            "---\n\n"
+        )
+
+    # 3. New episode: same format as examples but Label: ?, with classification instruction
+    new_episode = (
+        f"Title: (unknown)\n"
+        f"Description: {description}\n"
+        f"Label: ?\n\n"
+        "Classify the episode above. Return the label on the first line, "
+        "then your reasoning below it."
+    )
+
+    return f"{task_instruction}\n\n{examples_block}{new_episode}"
 
 
 def classify_episode(description: str, labeled_examples: list[dict]) -> dict:
     """
     Classify a single podcast episode description using the few-shot LLM classifier.
-
-    TODO — Milestone 2 (complete after build_few_shot_prompt):
-
-    Steps:
-      1. Call build_few_shot_prompt() to construct the prompt
-      2. Send it to the LLM via _client.chat.completions.create()
-      3. Parse the response to extract a label and reasoning
-      4. Validate the label — if it's not in VALID_LABELS, set it to "unknown"
-      5. Return a dict with "label" and "reasoning" keys
-
-    Handle the case where the LLM returns something unparseable gracefully —
-    don't let a bad response crash the whole evaluation.
-
-    Before writing code, complete specs/classifier-spec.md.
+    Returns a dict with "label" (one of VALID_LABELS or "unknown") and "reasoning".
     """
-    return {
-        "label": None,
-        "reasoning": "Classifier not yet implemented. Complete Milestone 2.",
-    }
+    try:
+        # Step 1: Build the prompt using labeled training examples
+        prompt = build_few_shot_prompt(labeled_examples, description)
+
+        # Step 2: Send the prompt to the LLM
+        response = _client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=250,
+        )
+
+        # Step 3: Parse the response — label on first line, reasoning on the rest
+        raw = response.choices[0].message.content.strip()
+        lines = raw.splitlines()
+        first_line = lines[0].strip().lower() if lines else ""
+        reasoning = "\n".join(lines[1:]).strip() if len(lines) > 1 else raw
+
+        # Step 4: Validate the label — scan first line for a known label, else "unknown"
+        label = next((l for l in VALID_LABELS if l in first_line), "unknown")
+
+        # Step 5: Return the result dict
+        return {"label": label, "reasoning": reasoning}
+
+    except Exception as e:
+        return {"label": "unknown", "reasoning": f"Error: {e}"}
