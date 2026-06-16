@@ -162,6 +162,9 @@ Extract the response text from:
 [blank — how do you extract the label and reasoning from the LLM's text output?
 What string operations or parsing logic do you need?
 This depends on the output format you chose in build_few_shot_prompt.]
+
+label parsing : lines[0].strip().lower()
+scan for label: next(l for l in VALID_LABELS if l in first_line)
 ```
 
 ---
